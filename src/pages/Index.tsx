@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,12 @@ interface Mod {
   fileName?: string;
   fileSize?: string;
   installPath?: string;
+}
+
+interface User {
+  username: string;
+  email: string;
+  password: string;
 }
 
 const mockMods: Mod[] = [
@@ -98,6 +104,39 @@ const Index = () => {
   const [currentUser, setCurrentUser] = useState('');
   const [likedMods, setLikedMods] = useState<number[]>([]);
   const [userMods, setUserMods] = useState<Mod[]>([]);
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [registerData, setRegisterData] = useState({ username: '', email: '', password: '' });
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('protonBusUser');
+    const savedMods = localStorage.getItem('protonBusUserMods');
+    const savedLikes = localStorage.getItem('protonBusLikedMods');
+    
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setIsRegistered(true);
+      setCurrentUser(user.username);
+    }
+    
+    if (savedMods) {
+      setUserMods(JSON.parse(savedMods));
+    }
+    
+    if (savedLikes) {
+      setLikedMods(JSON.parse(savedLikes));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (userMods.length > 0) {
+      localStorage.setItem('protonBusUserMods', JSON.stringify(userMods));
+    }
+  }, [userMods]);
+
+  useEffect(() => {
+    localStorage.setItem('protonBusLikedMods', JSON.stringify(likedMods));
+  }, [likedMods]);
   
   const [newMod, setNewMod] = useState({
     title: '',
@@ -119,6 +158,65 @@ const Index = () => {
   });
   const [editImagePreview, setEditImagePreview] = useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleRegister = () => {
+    if (!registerData.username || !registerData.email || !registerData.password) {
+      toast.error('Заполните все поля');
+      return;
+    }
+
+    const users: User[] = JSON.parse(localStorage.getItem('protonBusUsers') || '[]');
+    const userExists = users.find(u => u.email === registerData.email);
+    
+    if (userExists) {
+      toast.error('Пользователь с таким email уже существует');
+      return;
+    }
+
+    const newUser: User = {
+      username: registerData.username,
+      email: registerData.email,
+      password: registerData.password
+    };
+
+    users.push(newUser);
+    localStorage.setItem('protonBusUsers', JSON.stringify(users));
+    localStorage.setItem('protonBusUser', JSON.stringify(newUser));
+    
+    setIsRegistered(true);
+    setCurrentUser(newUser.username);
+    toast.success(`Добро пожаловать, ${newUser.username}!`);
+    setRegisterData({ username: '', email: '', password: '' });
+  };
+
+  const handleLogin = () => {
+    if (!loginData.email || !loginData.password) {
+      toast.error('Заполните все поля');
+      return;
+    }
+
+    const users: User[] = JSON.parse(localStorage.getItem('protonBusUsers') || '[]');
+    const user = users.find(u => u.email === loginData.email && u.password === loginData.password);
+    
+    if (!user) {
+      toast.error('Неверный email или пароль');
+      return;
+    }
+
+    localStorage.setItem('protonBusUser', JSON.stringify(user));
+    setIsRegistered(true);
+    setCurrentUser(user.username);
+    toast.success(`С возвращением, ${user.username}!`);
+    setLoginData({ email: '', password: '' });
+    setIsLoginDialogOpen(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('protonBusUser');
+    setIsRegistered(false);
+    setCurrentUser('');
+    toast.success('Вы вышли из аккаунта');
+  };
 
   const categories = ['all', 'Автобусы', 'Карты', 'Скины'];
 
@@ -305,47 +403,48 @@ const Index = () => {
                   {!isRegistered ? (
                     <div className="space-y-4">
                       <p className="text-muted-foreground">Для загрузки модов необходима регистрация</p>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button className="w-full">Зарегистрироваться</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Регистрация</DialogTitle>
-                          </DialogHeader>
+                      <Tabs defaultValue="register" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="register">Регистрация</TabsTrigger>
+                          <TabsTrigger value="login">Вход</TabsTrigger>
+                        </TabsList>
+                        <div className="mt-4">
                           <div className="space-y-4">
                             <div>
-                              <Label htmlFor="username">Имя пользователя</Label>
+                              <Label htmlFor="reg-username">Имя пользователя</Label>
                               <Input 
-                                id="username" 
+                                id="reg-username" 
                                 placeholder="Введите имя"
-                                onChange={(e) => setCurrentUser(e.target.value)}
+                                value={registerData.username}
+                                onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
                               />
                             </div>
                             <div>
-                              <Label htmlFor="email">Email</Label>
-                              <Input id="email" type="email" placeholder="email@example.com" />
+                              <Label htmlFor="reg-email">Email</Label>
+                              <Input 
+                                id="reg-email" 
+                                type="email" 
+                                placeholder="email@example.com"
+                                value={registerData.email}
+                                onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                              />
                             </div>
                             <div>
-                              <Label htmlFor="password">Пароль</Label>
-                              <Input id="password" type="password" placeholder="••••••••" />
+                              <Label htmlFor="reg-password">Пароль</Label>
+                              <Input 
+                                id="reg-password" 
+                                type="password" 
+                                placeholder="••••••••"
+                                value={registerData.password}
+                                onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                              />
                             </div>
-                            <Button 
-                              className="w-full" 
-                              onClick={() => {
-                                if (currentUser) {
-                                  setIsRegistered(true);
-                                  toast.success('Регистрация успешна!');
-                                } else {
-                                  toast.error('Введите имя пользователя');
-                                }
-                              }}
-                            >
+                            <Button className="w-full" onClick={handleRegister}>
                               Зарегистрироваться
                             </Button>
                           </div>
-                        </DialogContent>
-                      </Dialog>
+                        </div>
+                      </Tabs>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -411,10 +510,127 @@ const Index = () => {
                 </DialogContent>
               </Dialog>
               
-              <Button variant="ghost" size="sm">
-                <Icon name="User" size={16} className="mr-2" />
-                {isRegistered ? currentUser : 'Войти'}
-              </Button>
+              {isRegistered ? (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Icon name="User" size={16} className="mr-2" />
+                      {currentUser}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Профиль</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                        <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+                          <span className="text-2xl font-heading font-bold text-primary-foreground">
+                            {currentUser.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-semibold text-lg">{currentUser}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Опубликовано модов: {userMods.length}
+                          </p>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="destructive" 
+                        className="w-full"
+                        onClick={handleLogout}
+                      >
+                        <Icon name="LogOut" size={16} className="mr-2" />
+                        Выйти из аккаунта
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <Dialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Icon name="User" size={16} className="mr-2" />
+                      Войти
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Вход в аккаунт</DialogTitle>
+                    </DialogHeader>
+                    <Tabs defaultValue="login" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="login">Вход</TabsTrigger>
+                        <TabsTrigger value="register">Регистрация</TabsTrigger>
+                      </TabsList>
+                      <div className="mt-4 space-y-4">
+                        <div className="space-y-4" data-state="login">
+                          <div>
+                            <Label htmlFor="login-email">Email</Label>
+                            <Input 
+                              id="login-email" 
+                              type="email" 
+                              placeholder="email@example.com"
+                              value={loginData.email}
+                              onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="login-password">Пароль</Label>
+                            <Input 
+                              id="login-password" 
+                              type="password" 
+                              placeholder="••••••••"
+                              value={loginData.password}
+                              onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                            />
+                          </div>
+                          <Button className="w-full" onClick={handleLogin}>
+                            <Icon name="LogIn" size={16} className="mr-2" />
+                            Войти
+                          </Button>
+                        </div>
+                        <div className="space-y-4" data-state="register">
+                          <div>
+                            <Label htmlFor="new-username">Имя пользователя</Label>
+                            <Input 
+                              id="new-username" 
+                              placeholder="Введите имя"
+                              value={registerData.username}
+                              onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="new-email">Email</Label>
+                            <Input 
+                              id="new-email" 
+                              type="email" 
+                              placeholder="email@example.com"
+                              value={registerData.email}
+                              onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="new-password">Пароль</Label>
+                            <Input 
+                              id="new-password" 
+                              type="password" 
+                              placeholder="••••••••"
+                              value={registerData.password}
+                              onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                            />
+                          </div>
+                          <Button className="w-full" onClick={handleRegister}>
+                            <Icon name="UserPlus" size={16} className="mr-2" />
+                            Зарегистрироваться
+                          </Button>
+                        </div>
+                      </div>
+                    </Tabs>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
 
