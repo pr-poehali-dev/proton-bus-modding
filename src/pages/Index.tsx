@@ -21,6 +21,10 @@ interface Mod {
   image: string;
   description?: string;
   isUserMod?: boolean;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  installPath?: string;
 }
 
 const mockMods: Mod[] = [
@@ -137,8 +141,37 @@ const Index = () => {
     }
   };
 
-  const handleDownload = (modTitle: string) => {
-    toast.success(`Скачивание "${modTitle}" началось!`);
+  const handleDownload = (mod: Mod) => {
+    if (mod.fileUrl) {
+      const link = document.createElement('a');
+      link.href = mod.fileUrl;
+      link.download = mod.fileName || `${mod.title}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      const updatedMods = userMods.map(m => {
+        if (m.id === mod.id) {
+          return { ...m, downloads: m.downloads + 1 };
+        }
+        return m;
+      });
+      setUserMods(updatedMods);
+      
+      toast.success(
+        <div>
+          <p className="font-semibold">Мод скачан!</p>
+          <p className="text-sm mt-1">Установите в папку: {mod.installPath || 'Documents/ProtonBus/Mods'}</p>
+        </div>
+      );
+    } else {
+      toast.success(
+        <div>
+          <p className="font-semibold">Скачивание "{mod.title}" началось!</p>
+          <p className="text-sm mt-1">Установите в: Documents/ProtonBus/Mods</p>
+        </div>
+      );
+    }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,6 +208,9 @@ const Index = () => {
       return;
     }
 
+    const fileUrl = URL.createObjectURL(newMod.file);
+    const fileSizeMB = (newMod.file.size / (1024 * 1024)).toFixed(2);
+
     const mod: Mod = {
       id: Date.now(),
       title: newMod.title,
@@ -185,11 +221,15 @@ const Index = () => {
       date: new Date().toISOString().split('T')[0],
       image: imagePreview || 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&h=250&fit=crop',
       description: newMod.description,
-      isUserMod: true
+      isUserMod: true,
+      fileUrl: fileUrl,
+      fileName: newMod.file.name,
+      fileSize: `${fileSizeMB} МБ`,
+      installPath: 'Documents/ProtonBus/Mods'
     };
 
     setUserMods([mod, ...userMods]);
-    toast.success('Мод успешно опубликован!');
+    toast.success('Мод успешно опубликован и готов к скачиванию!');
     
     setNewMod({ title: '', category: '', description: '', image: '', file: null });
     setImagePreview('');
@@ -484,10 +524,10 @@ const Index = () => {
               <CardFooter className="flex gap-2">
                 <Button 
                   className="flex-1"
-                  onClick={() => handleDownload(mod.title)}
+                  onClick={() => handleDownload(mod)}
                 >
                   <Icon name="Download" size={16} className="mr-2" />
-                  Скачать
+                  {mod.fileSize ? `Скачать (${mod.fileSize})` : 'Скачать'}
                 </Button>
                 <Button 
                   variant={likedMods.includes(mod.id) ? "default" : "outline"}
