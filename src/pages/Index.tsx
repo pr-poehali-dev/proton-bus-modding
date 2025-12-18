@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
 
@@ -18,6 +19,8 @@ interface Mod {
   likes: number;
   date: string;
   image: string;
+  description?: string;
+  isUserMod?: boolean;
 }
 
 const mockMods: Mod[] = [
@@ -29,7 +32,8 @@ const mockMods: Mod[] = [
     downloads: 15420,
     likes: 342,
     date: '2024-12-15',
-    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&h=250&fit=crop'
+    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&h=250&fit=crop',
+    description: 'Качественная модель автобуса Mercedes-Benz'
   },
   {
     id: 2,
@@ -87,12 +91,36 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isRegistered, setIsRegistered] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [currentUser, setCurrentUser] = useState('');
   const [likedMods, setLikedMods] = useState<number[]>([]);
+  const [userMods, setUserMods] = useState<Mod[]>([]);
+  
+  const [newMod, setNewMod] = useState({
+    title: '',
+    category: '',
+    description: '',
+    image: '',
+    file: null as File | null
+  });
+  const [imagePreview, setImagePreview] = useState('');
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  
+  const [editingMod, setEditingMod] = useState<Mod | null>(null);
+  const [editData, setEditData] = useState({
+    title: '',
+    category: '',
+    description: '',
+    image: '',
+    file: null as File | null
+  });
+  const [editImagePreview, setEditImagePreview] = useState('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const categories = ['all', 'Автобусы', 'Карты', 'Скины'];
 
-  const filteredMods = mockMods.filter(mod => {
+  const allMods = [...mockMods, ...userMods];
+  
+  const filteredMods = allMods.filter(mod => {
     const matchesSearch = mod.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          mod.author.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || mod.category === selectedCategory;
@@ -113,17 +141,99 @@ const Index = () => {
     toast.success(`Скачивание "${modTitle}" началось!`);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        setNewMod({ ...newMod, image: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result as string);
+        setEditData({ ...editData, image: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleUpload = () => {
     if (!isRegistered) {
       toast.error('Необходима регистрация для загрузки модов');
       return;
     }
-    if (!uploadFile) {
-      toast.error('Выберите файл для загрузки');
+    if (!newMod.title || !newMod.category || !newMod.file) {
+      toast.error('Заполните все поля и выберите файл');
       return;
     }
-    toast.success('Мод успешно загружен!');
-    setUploadFile(null);
+
+    const mod: Mod = {
+      id: Date.now(),
+      title: newMod.title,
+      author: currentUser,
+      category: newMod.category,
+      downloads: 0,
+      likes: 0,
+      date: new Date().toISOString().split('T')[0],
+      image: imagePreview || 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&h=250&fit=crop',
+      description: newMod.description,
+      isUserMod: true
+    };
+
+    setUserMods([mod, ...userMods]);
+    toast.success('Мод успешно опубликован!');
+    
+    setNewMod({ title: '', category: '', description: '', image: '', file: null });
+    setImagePreview('');
+    setIsUploadDialogOpen(false);
+  };
+
+  const handleEdit = (mod: Mod) => {
+    setEditingMod(mod);
+    setEditData({
+      title: mod.title,
+      category: mod.category,
+      description: mod.description || '',
+      image: mod.image,
+      file: null
+    });
+    setEditImagePreview(mod.image);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMod) return;
+
+    const updatedMods = userMods.map(mod => {
+      if (mod.id === editingMod.id) {
+        return {
+          ...mod,
+          title: editData.title,
+          category: editData.category,
+          description: editData.description,
+          image: editImagePreview
+        };
+      }
+      return mod;
+    });
+
+    setUserMods(updatedMods);
+    toast.success('Мод успешно обновлен!');
+    setIsEditDialogOpen(false);
+    setEditingMod(null);
+  };
+
+  const handleDeleteMod = (modId: number) => {
+    setUserMods(userMods.filter(mod => mod.id !== modId));
+    toast.success('Мод удален');
   };
 
   return (
@@ -141,14 +251,14 @@ const Index = () => {
             </div>
             
             <div className="flex gap-2">
-              <Dialog>
+              <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Icon name="Upload" size={16} className="mr-2" />
                     Загрузить мод
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Загрузить мод</DialogTitle>
                   </DialogHeader>
@@ -166,7 +276,11 @@ const Index = () => {
                           <div className="space-y-4">
                             <div>
                               <Label htmlFor="username">Имя пользователя</Label>
-                              <Input id="username" placeholder="Введите имя" />
+                              <Input 
+                                id="username" 
+                                placeholder="Введите имя"
+                                onChange={(e) => setCurrentUser(e.target.value)}
+                              />
                             </div>
                             <div>
                               <Label htmlFor="email">Email</Label>
@@ -179,8 +293,12 @@ const Index = () => {
                             <Button 
                               className="w-full" 
                               onClick={() => {
-                                setIsRegistered(true);
-                                toast.success('Регистрация успешна!');
+                                if (currentUser) {
+                                  setIsRegistered(true);
+                                  toast.success('Регистрация успешна!');
+                                } else {
+                                  toast.error('Введите имя пользователя');
+                                }
                               }}
                             >
                               Зарегистрироваться
@@ -192,19 +310,56 @@ const Index = () => {
                   ) : (
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="modTitle">Название мода</Label>
-                        <Input id="modTitle" placeholder="Название" />
+                        <Label htmlFor="modTitle">Название мода *</Label>
+                        <Input 
+                          id="modTitle" 
+                          placeholder="Название" 
+                          value={newMod.title}
+                          onChange={(e) => setNewMod({ ...newMod, title: e.target.value })}
+                        />
                       </div>
                       <div>
-                        <Label htmlFor="category">Категория</Label>
-                        <Input id="category" placeholder="Автобусы, Карты, Скины..." />
+                        <Label htmlFor="category">Категория *</Label>
+                        <Input 
+                          id="category" 
+                          placeholder="Автобусы, Карты, Скины..."
+                          value={newMod.category}
+                          onChange={(e) => setNewMod({ ...newMod, category: e.target.value })}
+                        />
                       </div>
                       <div>
-                        <Label htmlFor="file">Файл мода</Label>
+                        <Label htmlFor="description">Описание</Label>
+                        <Textarea 
+                          id="description" 
+                          placeholder="Описание мода..."
+                          value={newMod.description}
+                          onChange={(e) => setNewMod({ ...newMod, description: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="image">Фото мода</Label>
+                        <Input 
+                          id="image" 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleImageChange}
+                        />
+                        {imagePreview && (
+                          <div className="mt-3">
+                            <img 
+                              src={imagePreview} 
+                              alt="Preview" 
+                              className="w-full h-48 object-cover rounded-lg"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="file">Файл мода *</Label>
                         <Input 
                           id="file" 
                           type="file" 
-                          onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                          onChange={(e) => setNewMod({ ...newMod, file: e.target.files?.[0] || null })}
                         />
                       </div>
                       <Button className="w-full" onClick={handleUpload}>
@@ -218,7 +373,7 @@ const Index = () => {
               
               <Button variant="ghost" size="sm">
                 <Icon name="User" size={16} className="mr-2" />
-                {isRegistered ? 'Профиль' : 'Войти'}
+                {isRegistered ? currentUser : 'Войти'}
               </Button>
             </div>
           </div>
@@ -287,6 +442,11 @@ const Index = () => {
                 <Badge className="absolute top-3 right-3 bg-primary/90 backdrop-blur-sm">
                   {mod.category}
                 </Badge>
+                {mod.isUserMod && (
+                  <Badge className="absolute top-3 left-3 bg-accent/90 backdrop-blur-sm">
+                    Мой мод
+                  </Badge>
+                )}
               </div>
               
               <CardHeader>
@@ -297,6 +457,11 @@ const Index = () => {
                   <Icon name="User" size={14} />
                   {mod.author}
                 </p>
+                {mod.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    {mod.description}
+                  </p>
+                )}
               </CardHeader>
               
               <CardContent>
@@ -331,6 +496,24 @@ const Index = () => {
                 >
                   <Icon name="Heart" size={16} />
                 </Button>
+                {mod.isUserMod && (
+                  <>
+                    <Button 
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleEdit(mod)}
+                    >
+                      <Icon name="Edit" size={16} />
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleDeleteMod(mod.id)}
+                    >
+                      <Icon name="Trash2" size={16} />
+                    </Button>
+                  </>
+                )}
               </CardFooter>
             </Card>
           ))}
@@ -344,6 +527,70 @@ const Index = () => {
           </div>
         )}
       </main>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Редактировать мод</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="editTitle">Название мода</Label>
+              <Input 
+                id="editTitle" 
+                value={editData.title}
+                onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="editCategory">Категория</Label>
+              <Input 
+                id="editCategory" 
+                value={editData.category}
+                onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="editDescription">Описание</Label>
+              <Textarea 
+                id="editDescription" 
+                value={editData.description}
+                onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="editImage">Изменить фото</Label>
+              <Input 
+                id="editImage" 
+                type="file" 
+                accept="image/*"
+                onChange={handleEditImageChange}
+              />
+              {editImagePreview && (
+                <div className="mt-3">
+                  <img 
+                    src={editImagePreview} 
+                    alt="Preview" 
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleSaveEdit}>
+                <Icon name="Save" size={16} className="mr-2" />
+                Сохранить изменения
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditDialogOpen(false)}
+              >
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <footer className="border-t border-border mt-16 py-8 bg-card/30">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
